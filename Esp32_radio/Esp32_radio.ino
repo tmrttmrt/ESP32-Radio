@@ -142,9 +142,9 @@
 // 04-10-2018, ES: Fixed compile error OLED 64x128 display.
 // 09-10-2018, ES: Bug fix xSemaphoreTake.
 // 30-12-2018, DK: Added support for NEC style IR repeat codes
+// 03-01-2019, DK: Added option for debug messages via mqtt
 // 05-01-2019, ES: Fine tune datarate.
 // 05-01-2019, ES: Basic http authentication. (just one user)
-// 11-02-2019, ES: MQTT topic and subtopic size enlarged.
 // 05-01-2019, ES: Fine tune datarate.
 // 05-01-2019, ES: Basic http authentication. (just one user)
 // 11-02-2019, ES: MQTT topic and subtopic size enlarged.
@@ -175,7 +175,7 @@
 //#define CH376                          // For CXH376 support (reading files from USB stick)
 //#define SDCARD                         // For SD card support (reading files from SD card)
 // Define (just one) type of display.  See documentation.
-//#define BLUETFT                        // Works also for RED TFT 128x160
+//#define BLUETFT                      // Works also for RED TFT 128x160
 //#define OLED                         // 64x128 I2C OLED
 //#define DUMMYTFT                     // Dummy display
 //#define LCD1602I2C                   // LCD 1602 display with I2C backpack
@@ -203,12 +203,10 @@
 // Number of entries in the queue
 #define QSIZ 800
 // Debug buffer size
-#define DEBUG_BUFFER_SIZE 150
 // Access point name if connection to WiFi network fails.  Also the hostname for WiFi and OTA.
 // Not that the password of an AP must be at least as long as 8 characters.
 // Also used for other naming.
 #define NAME "ESP32Radio"
-#define QSIZ 400
 // Debug buffer size
 #define DEBUG_BUFFER_SIZE 150
 #define NVSBUFSIZE 150
@@ -249,6 +247,7 @@ void        handlebyte_ch ( uint8_t b ) ;
 void        handleFSf ( const String& pagename ) ;
 void        handleCmd()  ;
 char*       dbgprint( const char* format, ... ) ;
+char*       dbgprintS( const char* format, ... ) ;
 const char* analyzeCmd ( const char* str ) ;
 const char* analyzeCmd ( const char* par, const char* val ) ;
 void        chomp ( String &str ) ;
@@ -308,6 +307,7 @@ struct ini_struct
   uint16_t       mqttport ;                           // Port, default 1883
   String         mqttuser ;                           // User for MQTT authentication
   String         mqttpasswd ;                         // Password for MQTT authentication
+  bool           mqttdbg ;                            // Use MQTT for debug messages
   uint8_t        reqvol ;                             // Requested volume
   uint8_t        rtone[4] ;                           // Requested bass/treble settings
   int16_t        newpreset ;                          // Requested preset
@@ -381,7 +381,7 @@ struct keyname_t                                      // For keys in NVS
 // Items in ini_block can be changed by commands from webserver/MQTT/Serial.                       *
 //**************************************************************************************************
 
-enum display_t { T_UNDEFINED, T_BLUETFT, T_OLED,             // Various types of display
+enum display_t { T_UNDEFINED, T_BLUETFT, T_OLED,         // Various types of display
                  T_DUMMYTFT, T_LCD1602I2C, T_LCD2004I2C,
                  T_ILI9341, T_NEXTION, T_ILI9225 } ;
 
@@ -411,7 +411,7 @@ SemaphoreHandle_t SPIsem = NULL ;                        // For exclusive SPI us
 hw_timer_t*       timer = NULL ;                         // For timer
 char              timetxt[9] ;                           // Converted timeinfo
 char              cmd[130] ;                             // Command from MQTT or Serial
-uint8_t           tmpbuff[6000] ;                        // Input buffer for mp3 or data stream 
+uint8_t           tmpbuff[6000] ;                        // Input buffer for mp3 or data stream
 QueueHandle_t     dataqueue ;                            // Queue for mp3 datastream
 QueueHandle_t     spfqueue ;                             // Queue for special functions
 qdata_struct      outchunk ;                             // Data to queue
@@ -486,6 +486,7 @@ sv bool           tripleclick = false ;                  // True if triple click
 sv bool           longclick = false ;                    // True if longclick detected
 enum enc_menu_t { VOLUME, PRESET, TRACK } ;              // State for rotary encoder menu
 enc_menu_t        enc_menu_mode = VOLUME ;               // Default is VOLUME mode
+char              dbgbuf[DEBUG_BUFFER_SIZE] ;            // For debug lines
 
 //
 struct progpin_struct                                    // For programmable input pins
@@ -494,7 +495,7 @@ struct progpin_struct                                    // For programmable inp
   bool           reserved ;                              // Reserved for connected devices
   bool           avail ;                                 // Pin is available for a command
   String         command ;                               // Command to execute when activated
-                                                         // Example: "uppreset=1"
+  // Example: "uppreset=1"
   bool           cur ;                                   // Current state, true = HIGH, false = LOW
 } ;
 
@@ -591,9 +592,9 @@ touchpin_struct   touchpin[] =                           // Touch pins and progr
 //**************************************************************************************************
 // ID's for the items to publish to MQTT.  Is index in amqttpub[]
 enum { MQTT_IP,     MQTT_ICYNAME, MQTT_STREAMTITLE, MQTT_NOWPLAYING,
-       MQTT_PRESET, MQTT_VOLUME, MQTT_PLAYING, MQTT_PLAYLISTPOS
+       MQTT_DEBUG, MQTT_PRESET, MQTT_VOLUME, MQTT_PLAYING, MQTT_PLAYLISTPOS,
      } ;
-enum { MQSTRING, MQINT8, MQINT16 } ;                     // Type of variable to publish
+enum { MQSTRING, MQCSTR, MQINT8, MQINT16 } ;             // Type of variable to publish
 
 class mqttpubc                                           // For MQTT publishing
 {
@@ -607,12 +608,13 @@ class mqttpubc                                           // For MQTT publishing
     // Publication topics for MQTT.  The topic will be pefixed by "PREFIX/", where PREFIX is replaced
     // by the the mqttprefix in the preferences.
   protected:
-    mqttpub_struct amqttpub[9] =                   // Definitions of various MQTT topic to publish
+    mqttpub_struct amqttpub[10] =                   // Definitions of various MQTT topic to publish
     { // Index is equal to enum above
       { "ip",              MQSTRING, &ipaddress,        false }, // Definition for MQTT_IP
       { "icy/name",        MQSTRING, &icyname,          false }, // Definition for MQTT_ICYNAME
       { "icy/streamtitle", MQSTRING, &icystreamtitle,   false }, // Definition for MQTT_STREAMTITLE
       { "nowplaying",      MQSTRING, &ipaddress,        false }, // Definition for MQTT_NOWPLAYING
+      { "debug",           MQCSTR,   dbgbuf,            false }, // Definition for MQTT_DEBUG
       { "preset" ,         MQINT8,   &currentpreset,    false }, // Definition for MQTT_PRESET
       { "volume" ,         MQINT8,   &ini_block.reqvol, false }, // Definition for MQTT_VOLUME
       { "playing",         MQINT8,   &playingstat,      false }, // Definition for MQTT_PLAYING
@@ -663,6 +665,9 @@ void mqttpubc::publishtopic()
           payload = ((String*)amqttpub[i].payload)->c_str() ;
           //payload = pstr->c_str() ;                           // Get pointer to payload
           break ;
+        case MQCSTR :
+          payload = (char*)amqttpub[i].payload ;              // Cast to array of char
+          break;
         case MQINT8 :
           sprintf ( intvar, "%d",
                     *(int8_t*)amqttpub[i].payload ) ;         // Convert to array of char
@@ -676,11 +681,11 @@ void mqttpubc::publishtopic()
         default :
           continue ;                                          // Unknown data type
       }
-      dbgprint ( "Publish to topic %s : %s",                  // Show for debug
+      dbgprintS ( "Publish to topic %s : %s",                 // Show for debug
                  topic, payload ) ;
       if ( !mqttclient.publish ( topic, payload ) )           // Publish!
       {
-        dbgprint ( "MQTT publish failed!" ) ;                 // Failed
+        dbgprintS ( "MQTT publish failed!" ) ;                // Failed
       }
       return ;                                                // Do the rest later
     }
@@ -902,12 +907,12 @@ bool VS1053::testComm ( const char *header )
   // If DREQ is low, there is problably no VS1053 connected.  Pull the line HIGH
   // in order to prevent an endless loop waiting for this signal.  The rest of the
   // software will still work, but readbacks from VS1053 will fail.
-  int            i ;                                    // Loop control
-  uint16_t       r1, r2, cnt = 0 ;
-  uint16_t       delta = 300 ;                          // 3 for fast SPI
+  int       i ;                                         // Loop control
+  uint16_t  r1, r2, cnt = 0 ;
+  uint16_t  delta = 300 ;                               // 3 for fast SPI
   const uint16_t vstype[] = { 1001, 1011, 1002, 1003,   // Possible chip versions
                               1053, 1033, 0000, 1103 } ;
-  
+
   dbgprint ( header ) ;                                 // Show a header
   if ( !digitalRead ( dreq_pin ) )
   {
@@ -1306,8 +1311,8 @@ void nvschkey ( const char* oldk, const char* newk )
 //**************************************************************************************************
 void claimSPI ( const char* p )
 {
-  const              TickType_t ctry = 10 ;                 // Time to wait for semaphore
-  uint32_t           count = 0 ;                            // Wait time in ticks
+  const        TickType_t ctry = 10 ;                       // Time to wait for semaphore
+  uint32_t     count = 0 ;                                  // Wait time in ticks
   static const char* old_id = "none" ;                      // ID that holds the bus
 
   while ( xSemaphoreTake ( SPIsem, ctry ) != pdTRUE  )      // Claim SPI bus
@@ -1482,16 +1487,41 @@ String utf8ascii ( const char* s )
 //**************************************************************************************************
 //                                          D B G P R I N T                                        *
 //**************************************************************************************************
-// Send a line of info to serial output.  Works like vsprintf(), but checks the DEBUG flag.        *
-// Print only if DEBUG flag is true.  Always returns the formatted string.                         *
+// Send a line of info to serial output and mqtt.  Works like vsprintf(), but checks the DEBUG     *
+// flag. Print only if DEBUG flag is true.  Always returns the formatted string.                   *
 //**************************************************************************************************
 char* dbgprint ( const char* format, ... )
 {
-  static char sbuf[DEBUG_BUFFER_SIZE] ;                // For debug lines
   va_list varArgs ;                                    // For variable number of params
 
   va_start ( varArgs, format ) ;                       // Prepare parameters
-  vsnprintf ( sbuf, sizeof(sbuf), format, varArgs ) ;  // Format the message
+  vsnprintf ( dbgbuf, sizeof(dbgbuf), format, varArgs ) ;  // Format the message
+  va_end ( varArgs ) ;                                 // End of using parameters
+  if ( DEBUG )                                         // DEBUG on?
+  {
+    Serial.print ( "D: " ) ;                           // Yes, print prefix
+    Serial.println ( dbgbuf ) ;                        // and the info
+  }
+  if ( ini_block.mqttdbg )
+  {
+    mqttpub.trigger ( MQTT_DEBUG ) ;                   // Request publishing to MQTT
+  }
+  return dbgbuf ;                                      // Return stored string
+}
+
+//**************************************************************************************************
+//                                          D B G P R I N T S                                      *
+//**************************************************************************************************
+// Send a line of info to serial output only.  Works like vsprintf(), but checks the DEBUG flag.   *
+// Print only if DEBUG flag is true.  Always returns the formatted string.                         *
+//**************************************************************************************************
+char* dbgprintS ( const char* format, ... )
+{
+  va_list varArgs ;                                    // For variable number of params
+  static char     sbuf[DEBUG_BUFFER_SIZE] ;            // For debug lines
+
+  va_start ( varArgs, format ) ;                       // Prepare parameters
+  vsnprintf ( sbuf, sizeof(dbgbuf), format, varArgs ) ;// Format the message
   va_end ( varArgs ) ;                                 // End of using parameters
   if ( DEBUG )                                         // DEBUG on?
   {
@@ -1707,6 +1737,7 @@ void IRAM_ATTR timer100()
     }
   }
 }
+
 
 //**************************************************************************************************
 //                                          I S R _ I R                                            *
@@ -2196,7 +2227,7 @@ bool connectwifi()
   }
   tftlog ( pfs ) ;                                      // Show IP
   delay ( 3000 ) ;                                      // Allow user to read this
-  tftlog ( "\f" ) ;                                     // Select new page if NEXTION 
+  tftlog ( "\f" ) ;                                     // Select new page if NEXTION
   return ( localAP == false ) ;                         // Return result of connection
 }
 
@@ -2255,7 +2286,7 @@ bool do_nextion_update ( uint32_t clength )
       }
       k = otaclient.read ( tmpbuff, k ) ;                      // Read a number of bytes from the stream
       dbgprint ( "TFT file, read %d bytes", k ) ;
-      nxtserial->write ( tmpbuff, k ) ;     
+      nxtserial->write ( tmpbuff, k ) ;
       while ( !nxtserial->available() )                        // Any input seen?
       {
         delay ( 20 ) ;
@@ -2374,7 +2405,7 @@ void update_software ( const char* lstmodkey, const char* updatehost, const char
       break ;                                                   // Yes, get the OTA started
     }
     // Check if the HTTP Response is 200.  Any other response is an error.
-    if ( line.startsWith ( "HTTP/1.1" ) )                       // 
+    if ( line.startsWith ( "HTTP/1.1" ) )                       //
     {
       if ( line.indexOf ( " 200 " ) < 0 )
       {
@@ -2393,7 +2424,7 @@ void update_software ( const char* lstmodkey, const char* updatehost, const char
   {
     dbgprint ( "No new version available" ) ;                   // No, show reason
     otaclient.flush() ;
-    return ;    
+    return ;
   }
   if ( clength > 0 )
   {
@@ -2438,12 +2469,12 @@ String readhostfrompref ( int16_t preset )
     if ( !nvssearch ( tkey ) )                         // Does _xxx exists?
     {
       sprintf ( tkey, "preset_%02d", preset ) ;        // Form new search key
-    }
-    if ( !nvssearch ( tkey ) )                         // Does _xx exists?
-    {
-      return String ( "" ) ;                           // Not found
-    }
   }
+    if ( !nvssearch ( tkey ) )                         // Does _xx exists?
+  {
+    return String ( "" ) ;                             // Not found
+  }
+}
   // Get the contents
   return nvsgetstr ( tkey ) ;                          // Get the station (or empty sring)
 }
@@ -2865,7 +2896,7 @@ void scanserial2()
           dbgprint ( "NEXTION command seen %02X %s",
                      cmd[0], cmd + 1 ) ;
           if ( cmd[0] == 0x70 )                    // Button pressed?
-          { 
+          {
             reply = analyzeCmd ( cmd + 1 ) ;       // Analyze command and handle it
             dbgprint ( reply ) ;                   // Result for debugging
           }
@@ -3381,8 +3412,9 @@ void setup()
   ini_block.clk_dst = 1 ;                                // DST is +1 hour
   ini_block.bat0 = 0 ;                                   // Battery ADC levels not yet defined
   ini_block.bat100 = 0 ;
+  ini_block.mqttdbg = false ;                            // Default for debug messages via mqtt
   readIOprefs() ;                                        // Read pins used for SPI, TFT, VS1053, IR,
-                                                         // Rotary encoder
+  // Rotary encoder
   for ( i = 0 ; (pinnr = progpin[i].gpio) >= 0 ; i++ )   // Check programmable input pins
   {
     pinMode ( pinnr, INPUT_PULLUP ) ;                    // Input for control button
@@ -3444,7 +3476,7 @@ void setup()
   blset ( true ) ;                                       // Enable backlight (if configured)
   setup_SDCARD() ;                                       // Set-up SD card (if configured)
   mk_lsan() ;                                            // Make a list of acceptable networks
-                                                         // in preferences.
+  // in preferences.
   WiFi.disconnect() ;                                    // After restart router could still
   delay ( 500 ) ;                                        // keep old connection
   WiFi.mode ( WIFI_STA ) ;                               // This ESP is a station
@@ -3454,7 +3486,7 @@ void setup()
   readprefs ( false ) ;                                  // Read preferences
   tcpip_adapter_set_hostname ( TCPIP_ADAPTER_IF_STA,
                                NAME ) ;
-  vs1053player->begin() ;                                // Initialize VS1053 player
+  vs1053player->begin() ;                                 // Initialize VS1053 player
   delay(10);
   setup_CH376() ;                                        // Init CH376 if configured
   p = dbgprint ( "Connect to WiFi" ) ;                   // Show progress
@@ -4301,15 +4333,15 @@ void mp3loop()
       }
     }
     if ( maxchunk == 0 )
-    {
-      if ( datamode == PLAYLISTDATA )                    // End of playlist
       {
+        if ( datamode == PLAYLISTDATA )                  // End of playlist
+        {
         playlist_num = 1 ;                               // Yes, restart playlist
-        dbgprint ( "End of playlist seen" ) ;
+          dbgprint ( "End of playlist seen" ) ;
         setdatamode ( STOPPED ) ;
-        ini_block.newpreset++ ;                          // Go to next preset
+          ini_block.newpreset++ ;                        // Go to next preset
+        }
       }
-    }
     for ( int i = 0 ; i < res ; i++ )
     {
       handlebyte_ch ( tmpbuff[i] ) ;                     // Handle one byte
@@ -4435,7 +4467,7 @@ void loop()
   if ( updatereq )                                  // Software update requested?
   {
     if ( displaytype == T_NEXTION )                 // NEXTION in use?
-    { 
+    {
       update_software ( "lstmodn",                  // Yes, update NEXTION image from remote image
                         UPDATEHOST, TFTFILE ) ;
     }
@@ -4717,7 +4749,7 @@ void handlebyte_ch ( uint8_t b )
         metaint = 0 ;                                  // Probably no metadata
       }
       datacount = metaint ;                            // Reset data count
-      //bufcnt = 0 ;                                   // Reset buffer count
+      //bufcnt = 0 ;                                     // Reset buffer count
       setdatamode ( DATA ) ;                           // Expecting data
     }
   }
@@ -5177,9 +5209,9 @@ const char* analyzeCmd ( const char* par, const char* val )
       {
         tmpstr = selectnextFSnode ( ivalue ) ;        // Select the next or previous file on SD/USB
         host = getFSfilename ( tmpstr ) ;
-        sprintf ( reply, "Playing %s",                // Reply new filename
-                  host.c_str() ) ;
-      }
+      sprintf ( reply, "Playing %s",                  // Reply new filename
+                host.c_str() ) ;
+    }
       hostreq = true ;                                // Request this host
     }
     else
@@ -5336,6 +5368,10 @@ const char* analyzeCmd ( const char* par, const char* val )
   else if ( argument == "debug" )                     // debug on/off request?
   {
     DEBUG = ivalue ;                                  // Yes, set flag accordingly
+  }
+  else if ( argument == "dbg_mqtt" )                  // debug via mqtt on/off request?
+  {
+    ini_block.mqttdbg = ivalue ;                      // Yes, set flag accordingly
   }
   else if ( argument == "getnetworks" )               // List all WiFi networks?
   {
