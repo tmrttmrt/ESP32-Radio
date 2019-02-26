@@ -1,4 +1,4 @@
-c//***************************************************************************************************
+//***************************************************************************************************
 //*  ESP32_Radio -- Webradio receiver for ESP32, VS1053 MP3 module and optional display.            *
 //*                 By Ed Smallenburg.                                                              *
 //***************************************************************************************************
@@ -156,12 +156,13 @@ c//*****************************************************************************
 #define TFTFILE     "/Arduino/ESP32-Radio.tft"          // Binary file name for update NEXTION image
 //
 // Define (just one) type of display.  See documentation.
-#define BLUETFT                      // Works also for RED TFT 128x160
+//#define BLUETFT                      // Works also for RED TFT 128x160
 //#define OLED                         // 64x128 I2C OLED
 //#define DUMMYTFT                     // Dummy display
 //#define LCD1602I2C                   // LCD 1602 display with I2C backpack
 //#define ILI9341                      // ILI9341 240*320
 //#define NEXTION                      // Nextion display. Uses UART 2 (pin 16 and 17)
+#define ILI9225                        // ILI92325 176*220
 //
 #include <nvs.h>
 #include <PubSubClient.h>
@@ -1068,6 +1069,9 @@ VS1053* vs1053player ;
 #endif
 #ifdef ILI9341
 #include "ILI9341.h"                                     // For ILI9341 320x240 display
+#endif
+#ifdef ILI9225
+#include "ILI9225.h"                                     // For ILI9225 320x240 display
 #endif
 #ifdef OLED
 #include "SSD1306.h"                                     // For OLED I2C SD1306 64x128 display
