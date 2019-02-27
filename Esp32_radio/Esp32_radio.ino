@@ -183,7 +183,7 @@
 #include <Update.h>
 #include <base64.h>
 // Number of entries in the queue
-#define QSIZ 400
+#define QSIZ 800
 // Debug buffer size
 #define DEBUG_BUFFER_SIZE 150
 // Access point name if connection to WiFi network fails.  Also the hostname for WiFi and OTA.
@@ -1071,7 +1071,7 @@ VS1053* vs1053player ;
 #include "ILI9341.h"                                     // For ILI9341 320x240 display
 #endif
 #ifdef ILI9225
-#include "ILI9225.h"                                     // For ILI9225 320x240 display
+#include "ILI9225.h"                                     // For ILI9225 220x176 display
 #endif
 #ifdef OLED
 #include "SSD1306.h"                                     // For OLED I2C SD1306 64x128 display
@@ -3663,6 +3663,9 @@ void setup()
   // Init settings for rotary switch (if existing).
   if ( ( ini_block.enc_clk_pin + ini_block.enc_dt_pin + ini_block.enc_sw_pin ) > 2 )
   {
+    pinMode ( ini_block.enc_clk_pin, INPUT_PULLUP ) ;
+    pinMode ( ini_block.enc_dt_pin, INPUT_PULLUP ) ;
+    pinMode ( ini_block.enc_sw_pin, INPUT_PULLUP ) ;
     attachInterrupt ( ini_block.enc_clk_pin, isr_enc_turn,   CHANGE ) ;
     attachInterrupt ( ini_block.enc_dt_pin,  isr_enc_turn,   CHANGE ) ;
     attachInterrupt ( ini_block.enc_sw_pin,  isr_enc_switch, CHANGE ) ;
@@ -5288,6 +5291,7 @@ const char* analyzeCmd ( const char* par, const char* val )
 
     {
       datamode = STOPREQD ;                           // Request STOP
+      tftset ( 3, "Stopped" );
     }
     else
     {

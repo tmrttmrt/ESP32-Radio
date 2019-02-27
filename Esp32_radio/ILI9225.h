@@ -39,6 +39,15 @@ int cursor_y=0;
 uint16_t ccol;
 int textsize;
 
+// Various macro's to mimic the ILI9225 version of display functions
+#define dsp_setRotation()       tft->setOrientation ( 1 )             // Use landscape format (3 for upside down)
+#define dsp_fillRect(a,b,c,d,e) tft->fillRectangle ( a, b, a+c, b+d, e ) ;  // Fill a rectange
+#define dsp_erase()             tft->clear() ;        // Clear the screen
+#define dsp_getwidth()          220                                // Adjust to your display
+#define dsp_getheight()         176                                // Get height of screen
+#define dsp_update()                                               // Updates to the physical screen
+#define dsp_usesSPI()           true                               // Does use SPI
+
 void dsp_setCursor(int a,int b){
     cursor_x=a;
     cursor_y=b;
@@ -55,9 +64,13 @@ void dsp_setTextSize(int a){
 size_t write(char c){
     if(c == '\n') {
             cursor_x  = 0;
-            cursor_y += (int16_t)textsize *
-                        tft->getFont().height;
+            cursor_y += (int16_t)textsize * tft->getFont().height;
         } else if(c != '\r') {
+            int x = cursor_x + tft->getCharWidth(c)+1;
+            if(x > dsp_getwidth()){
+                cursor_x  = 0;
+                cursor_y += (int16_t)textsize * tft->getFont().height;
+            }
             tft->drawChar(cursor_x,cursor_y,c,ccol);
             cursor_x  += tft->getCharWidth(c)+1;
         }
@@ -73,16 +86,6 @@ void dsp_println(const char* b){
     dsp_print(b);
     write('\n');
 }
-
-// Various macro's to mimic the ILI9225 version of display functions
-#define dsp_setRotation()       tft->setOrientation ( 3 )             // Use landscape format (3 for upside down)
-#define dsp_fillRect(a,b,c,d,e) tft->fillRectangle ( a, b, a+c, b+d, e ) ;  // Fill a rectange
-#define dsp_erase()             tft->clear() ;        // Clear the screen
-#define dsp_getwidth()          220                                // Adjust to your display
-#define dsp_getheight()         176                                // Get height of screen
-#define dsp_update()                                               // Updates to the physical screen
-#define dsp_usesSPI()           true                               // Does use SPI
-
 
 bool dsp_begin()
 {
@@ -177,7 +180,8 @@ void displaytime ( const char* str, uint16_t color )
   dbgprint ("displaytime ( const char* str, uint16_t color )" ) ;
   static char oldstr[9] = "........" ;             // For compare
   uint8_t     i ;                                  // Index in strings
-  uint16_t    pos = dsp_getwidth() -8*tft->getCharWidth('0') ;     // X-position of character, TIMEPOS is negative
+  uint8_t w = tft->getCharWidth('0')+1;
+  uint16_t    pos = dsp_getwidth() - 8 * w ;     // X-position of character
 
   if ( str[0] == '\0' )                            // Empty string?
   {
@@ -194,12 +198,12 @@ void displaytime ( const char* str, uint16_t color )
     {
       if ( str[i] != oldstr[i] )                   // Difference?
       {
-        dsp_fillRect ( pos, 0, tft->getCharWidth(oldstr[i]),  tft->getFont().height, BLACK ) ;     // Clear the space for new character
+        dsp_fillRect ( pos, 0, w,  tft->getFont().height, BLACK ) ;     // Clear the space for new character
         dsp_setCursor ( pos, 0 ) ;                 // Prepare to show the info
         write ( str[i] ) ;                     // Show the character
         oldstr[i] = str[i] ;                       // Remember for next compare
       }
-      pos += tft->getCharWidth(oldstr[i])+1 ;                                   // Next position
+      pos += w;                                   // Next position
     }
   }
 }
