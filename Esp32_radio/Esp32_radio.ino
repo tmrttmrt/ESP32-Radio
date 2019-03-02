@@ -5286,17 +5286,23 @@ const char* analyzeCmd ( const char* par, const char* val )
   }
   else if ( argument == "stop" )                      // (un)Stop requested?
   {
-    if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
-                      PLAYLISTHEADER | PLAYLISTDATA ) )
+    static long tlast;
+    dbgprint ("millis()-tlast = %ld", millis()-tlast) ;
+    if(millis()-tlast > 1000){
+        dbgprint ("'stop accepted'") ;
+        if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
+                          PLAYLISTHEADER | PLAYLISTDATA ) )
 
-    {
-      datamode = STOPREQD ;                           // Request STOP
-      tftset ( 3, "Stopped" );
+        {
+          datamode = STOPREQD ;                           // Request STOP
+          tftset ( 3, "Stopped" );
+        }
+        else
+        {
+          hostreq = true ;                                // Request UNSTOP
+        }
     }
-    else
-    {
-      hostreq = true ;                                // Request UNSTOP
-    }
+    tlast=millis();
   }
   else if ( ( value.length() > 0 ) &&
             ( ( argument == "mp3track" ) ||           // Select a track from SD card?
@@ -5481,6 +5487,8 @@ String httpheader ( String contentstype )
 //* Note that some device dependent function are place in the *.h files.                           *
 //**************************************************************************************************
 
+#if !defined(ILI9225)
+
 //**************************************************************************************************
 //                                      D I S P L A Y I N F O                                      *
 //**************************************************************************************************
@@ -5517,6 +5525,7 @@ void displayinfo ( uint16_t inx )
   }
 }
 
+#endif
 
 //**************************************************************************************************
 //                                         G E T T I M E                                           *
