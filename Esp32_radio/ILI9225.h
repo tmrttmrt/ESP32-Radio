@@ -26,11 +26,11 @@ scrseg_struct     tftdata[TFTSECS] =                        // Screen divided in
 {                                                           // One text line is 11 pixels
     { false, WHITE,   0, 12, "" },                            // 1 top line
     { false, CYAN,   22, 88, "" },                            // 8 lines in the middle
-    { false, YELLOW, 120, 44, "" },                            // 4 lines at the bottom
-    { false, GREEN,  120, 44, "" }                             // 4 lines at the bottom for rotary encoder
+    { false, YELLOW, 120, 53, "" },                            // 4 lines at the bottom
+    { false, GREEN,  120, 53, "" }                             // 4 lines at the bottom for rotary encoder
 } ;
 
-void utf8ascii ( char* s );
+void utf8ascii_ip ( char* s );
 
 TFT_22_ILI9225*     tft = NULL ;                                  // For instance of display driver
 
@@ -71,7 +71,8 @@ size_t write(char c){
             cursor_x  = 0;
             cursor_y += (int16_t)textsize * tft->getFont().height;
         }
-        tft->drawChar(cursor_x,cursor_y,c,ccol);
+        if(cursor_y<dsp_getheight()-tft->getFont().height)
+          tft->drawChar(cursor_x,cursor_y,c,ccol);
         cursor_x  += tft->getCharWidth(c)+1;
     }
 }
@@ -122,7 +123,7 @@ void displayinfo ( uint16_t inx )
                     int16_t w, h;
                     char buf [ len ] ;                                   // Need some buffer space
                     p->str.toCharArray ( buf, len ) ;                    // Make a local copy of the string
-                    utf8ascii ( buf ) ;                                  // Convert possible UTF8
+                    utf8ascii_ip ( buf ) ;                                  // Convert possible UTF8
                     tft->getGFXTextExtent(buf, 0, p->y, &w, &h);
                     if(w <= width){
                         tft->drawGFXText(0, p->y+h, buf, p->color);
@@ -150,7 +151,7 @@ void displayinfo ( uint16_t inx )
                 {
                     char buf [ len ] ;                                   // Need some buffer space
                     p->str.toCharArray ( buf, len ) ;                    // Make a local copy of the string
-                    utf8ascii ( buf ) ;                                  // Convert possible UTF8
+                    utf8ascii_ip ( buf ) ;                                  // Convert possible UTF8
                     dsp_setTextColor ( p->color ) ;                      // Set the requested color
                     dsp_setCursor ( 0, p->y ) ;                          // Prepare to show the info
                     dsp_println ( buf ) ;                                // Show the string

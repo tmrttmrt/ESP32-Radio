@@ -8,7 +8,7 @@ Features:
 -	Can connect to thousands of Internet radio stations that broadcast MP3 or Ogg audio streams.
 - Can connect to a standalone mp3 file on a server.
 - Support for .m3u playlists.
-- Can play mp3 tracks from SD card.
+- Can play mp3 tracks from SD card or USB stick (CH376).
 -	Uses a minimal number of components; no Arduino required.
 -	Handles bitrates up to 320 kbps.
 -	Has a preset list of maximal 100 favorite radio stations in configuration file.
@@ -36,6 +36,15 @@ Features:
 See documentation in doc/pdf-file.
 
 Last changes:
+- 14-oct-2020, Clear artist and song on display at new station connect.
+- 18-oct-2020, Fixed LCD2004 error.
+- 30-sep-2020, Ready for ch376msc library version 1.4.4.
+- 14-jul-2020, Dynamic status display in web interface.
+- 10-jul-2020, Support for USB drive (CH376).
+- 23-mar-2020, Allow playlists  on SD card.
+- 21-dec-2019, Check for right (VS1053) CHIP.
+- 16-dec-2019, Better logging claimSPI for debug.
+- 24-apr-2019, Better handling of gettim().
 - 09-oct-2018, Bug fix xSemaphoreTake.
 - 04-oct-2018, Fixed compile error OLED 64x128 display.
 - 28-sep-2018, Support for NEXTION display.
