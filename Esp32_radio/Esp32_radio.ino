@@ -163,7 +163,7 @@
 //#define LCD1602I2C                   // LCD 1602 display with I2C backpack
 //#define ILI9341                      // ILI9341 240*320
 //#define NEXTION                      // Nextion display. Uses UART 2 (pin 16 and 17)
-#define ILI9225                        // ILI92325 176*220
+#define ILI9225                        // ILI9225 176*220
 //
 #include <nvs.h>
 #include <PubSubClient.h>
