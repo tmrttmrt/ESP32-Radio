@@ -308,6 +308,7 @@ struct ini_struct
   String         mqttuser ;                           // User for MQTT authentication
   String         mqttpasswd ;                         // Password for MQTT authentication
   bool           mqttdbg ;                            // Use MQTT for debug messages
+  bool           filedbg ;                            // Use SPIFFS logfile
   uint8_t        reqvol ;                             // Requested volume
   uint8_t        rtone[4] ;                           // Requested bass/treble settings
   int16_t        newpreset ;                          // Requested preset
@@ -1171,6 +1172,8 @@ VS1053* vs1053player ;
 // Include software for SD card
 #include "SDcard.h"                                      // For SD caard interface
 
+#include "fileLog.h"
+
 //**************************************************************************************************
 //                                           B L S E T                                             *
 //**************************************************************************************************
@@ -1505,6 +1508,13 @@ char* dbgprint ( const char* format, ... )
   if ( ini_block.mqttdbg )
   {
     mqttpub.trigger ( MQTT_DEBUG ) ;                   // Request publishing to MQTT
+  }
+  if ( ini_block.filedbg )
+  {
+    String s=String(timetxt);
+    s += " : ";
+    s += dbgbuf;
+    fileLogSend(s.c_str());
   }
   return dbgbuf ;                                      // Return stored string
 }
@@ -3330,6 +3340,14 @@ void fillkeylist()
   bubbleSortKeys ( nvsinx ) ;                                   // Sort the keys
 }
 
+void getlogs(){
+  dbgprint("Sending log files to WiFiClient ...");
+  printFileToPStream("/logfile0.current.log",&cmdclient);
+  printFileToPStream("/logfile0.log",&cmdclient);
+  printFileToPStream("/logfile1.current.log",&cmdclient);
+  printFileToPStream("/logfile1.log",&cmdclient);
+}
+
 
 //**************************************************************************************************
 //                                           S E T U P                                             *
@@ -3351,6 +3369,9 @@ void setup()
 
   Serial.begin ( 115200 ) ;                              // For debug
   Serial.println() ;
+  
+  fileLogBegin();
+  
   // Version tests for some vital include files
   if ( about_html_version   < 170626 ) dbgprint ( wvn, "about" ) ;
   if ( config_html_version  < 180806 ) dbgprint ( wvn, "config" ) ;
@@ -3775,6 +3796,12 @@ void handlehttpreply()
           {
             cmdclient.print ( sndstr ) ;                    // Yes, send header
             getsettings() ;                                 // Handle settings request
+            return ;                                        // Do not send empty line
+          }
+          else if ( http_getcmd.startsWith ( "logs" ) )     // Is is a "Get logs"
+          {
+            cmdclient.print ( sndstr ) ;                    // Yes, send header
+            getlogs() ;                                 // Handle settings request
             return ;                                        // Do not send empty line
           }
           else
@@ -5372,6 +5399,10 @@ const char* analyzeCmd ( const char* par, const char* val )
   else if ( argument == "dbg_mqtt" )                  // debug via mqtt on/off request?
   {
     ini_block.mqttdbg = ivalue ;                      // Yes, set flag accordingly
+  }
+  else if ( argument == "dbg_file" )                  // debug via mqtt on/off request?
+  {
+    ini_block.filedbg = ivalue ;                      // Yes, set flag accordingly
   }
   else if ( argument == "getnetworks" )               // List all WiFi networks?
   {
