@@ -3342,10 +3342,7 @@ void fillkeylist()
 
 void getlogs(){
   dbgprint("Sending log files to WiFiClient ...");
-  printFileToPStream("/logfile0.current.log",&cmdclient);
-  printFileToPStream("/logfile0.log",&cmdclient);
-  printFileToPStream("/logfile1.current.log",&cmdclient);
-  printFileToPStream("/logfile1.log",&cmdclient);
+  printAllFilesToPStream(&cmdclient);
 }
 
 

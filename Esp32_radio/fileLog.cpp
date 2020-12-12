@@ -5,12 +5,18 @@
 #include <SpiffsFilePrint.h>
 #include "fileLog.h"
 
+#define NLOGFILES 2
+#define LOGFILESIZE 20000
+
 char*       dbgprint( const char* format, ... ) ;
 
 static TaskHandle_t      fileLogTaskH;                            
 static QueueHandle_t     fileLogQueueH;
 static SpiffsFilePrint *filePrint = NULL;
 
+const char baseName[] = "/logfile"; 
+const char extName[] = ".log"; 
+const char midName[] = ".current"; 
 
 void printFileToPStream(String filename, Print *const printStr) 
 {
@@ -24,6 +30,26 @@ void printFileToPStream(String filename, Print *const printStr)
   printStr->println();
   file.close();
 }
+
+void printAllFilesToPStream(Print *const printStr)
+{
+  int i;
+  
+  for(i=0; i< NLOGFILES; i++){
+    char buff[sizeof(baseName)+sizeof(midName)+sizeof(extName)+4];
+    char *mp;
+    
+    strcpy(buff,baseName);
+    itoa(i,buff+sizeof(baseName)-1,10);
+    mp=buff+strlen(buff);
+    strcpy(mp,midName);
+    strcat(buff,extName);
+    printFileToPStream(buff,printStr);
+    strcpy(mp,extName);
+    printFileToPStream(buff,printStr);
+  }
+}
+
 
 void fileLogSend(const char *s){
   char *dup = strdup(s);
@@ -54,9 +80,9 @@ void fileLogBegin()
       SPIFFS.format();
   }
     
-  filePrint = new SpiffsFilePrint("/logfile", 2, 5000);
+  filePrint = new SpiffsFilePrint("/logfile", NLOGFILES, LOGFILESIZE);
   
-  fileLogQueueH = xQueueCreate (10, sizeof(char *));
+  fileLogQueueH = xQueueCreate (50, sizeof(char *));
   
   xTaskCreate (
     fileLogtask,                                              // Task to handle special functions.
