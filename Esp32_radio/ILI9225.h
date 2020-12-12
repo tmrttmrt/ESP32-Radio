@@ -25,7 +25,7 @@
 scrseg_struct     tftdata[TFTSECS] =                        // Screen divided in 3 segments + 1 overlay
 {                                                           // One text line is 11 pixels
     { false, WHITE,   0, 12, "" },                            // 1 top line
-    { false, CYAN,   22, 88, "" },                            // 8 lines in the middle
+    { false, CYAN,   22, 92, "" },                            // 8 lines in the middle
     { false, YELLOW, 120, 53, "" },                            // 4 lines at the bottom
     { false, GREEN,  120, 53, "" }                             // 4 lines at the bottom for rotary encoder
 } ;
