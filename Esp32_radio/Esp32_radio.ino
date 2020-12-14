@@ -1639,7 +1639,7 @@ void IRAM_ATTR timer10sec()
                     PLAYLISTHEADER |
                     PLAYLISTDATA ) )
   {
-    bytesplayed = totalcount - oldtotalcount ;    // Nunber of bytes played in the 10 seconds
+    bytesplayed = totalcount - oldtotalcount ;    // Number of bytes played in the 10 seconds
     oldtotalcount = totalcount ;                  // Save for comparison in next cycle
     if ( bytesplayed == 0 )                       // Still playing?
     {
@@ -3342,7 +3342,7 @@ void fillkeylist()
 
 void getlogs(){
   dbgprint("Sending log files to WiFiClient ...");
-  printAllFilesToPStream(&cmdclient);
+  printAllFilesToClient(&cmdclient);
 }
 
 
@@ -3592,7 +3592,7 @@ void setup()
   xTaskCreatePinnedToCore (
     playtask,                                             // Task to play data in dataqueue.
     "Playtask",                                           // name of task.
-    1600,                                                 // Stack size of task
+    0xA00,                                                 // Stack size of task
     NULL,                                                 // parameter of the task
     2,                                                    // priority of the task
     &xplaytask,                                           // Task handle to keep track of created task
@@ -3600,7 +3600,7 @@ void setup()
   xTaskCreate (
     spftask,                                              // Task to handle special functions.
     "Spftask",                                            // name of task.
-    2048,                                                 // Stack size of task
+    0xA00,                                                 // Stack size of task
     NULL,                                                 // parameter of the task
     1,                                                    // priority of the task
     &xspftask ) ;                                         // Task handle to keep track of created task
@@ -5336,6 +5336,7 @@ const char* analyzeCmd ( const char* par, const char* val )
     dbgprint ( "ADC reading is %d", adcval ) ;
     dbgprint ( "scaniocount is %d", scaniocount ) ;
     dbgprint ( "Max. mp3_loop duration is %d", max_mp3loop_time ) ;
+    dbgprint ( "WiFi SSID: \"%s\" : RSSI: %d", WiFi.SSID(),WiFi.RSSI() ) ;
     max_mp3loop_time = 0 ;                            // Start new check
   }
   // Commands for bass/treble control

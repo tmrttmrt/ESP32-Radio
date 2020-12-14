@@ -2,36 +2,55 @@
 #include <FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
+#include <WiFi.h>
 #include <SpiffsFilePrint.h>
 #include "fileLog.h"
 
 #define NLOGFILES 2
 #define LOGFILESIZE 20000
+#define BLEN 255
+#define LOGQUEUELEN 50
 
 char*       dbgprint( const char* format, ... ) ;
+char*       dbgprintS( const char* format, ... ) ;
 
 static TaskHandle_t      fileLogTaskH;                            
 static QueueHandle_t     fileLogQueueH;
 static SpiffsFilePrint *filePrint = NULL;
+SemaphoreHandle_t filePrintSem = NULL; 
 
 const char baseName[] = "/logfile"; 
 const char extName[] = ".log"; 
 const char midName[] = ".current"; 
 
-void printFileToPStream(String filename, Print *const printStr) 
+void printFileToClient(String filename, WiFiClient *const cli) 
 {
+  uint8_t *buff[BLEN];
+  size_t blen=BLEN;
+  size_t br=0;
+  
   dbgprint("Sending %s",filename.c_str());
-  printStr->println("");
-  printStr->println(filename);
+  cli->println("");
+  cli->println(filename);
+  xSemaphoreTake ( filePrintSem, portMAX_DELAY );
   File file = SPIFFS.open(filename, FILE_READ);
-  while (file.available()) {
-    printStr->write(file.read());
+  while (0<(br=file.read((uint8_t *)buff,blen))) {
+    if(br>0){
+        if(0 == cli->write((uint8_t *) buff,br)){
+          file.close();
+          xSemaphoreGive(filePrintSem);
+          return;
+      }
+    }
+    vTaskDelay(10/portTICK_PERIOD_MS);
   }
-  printStr->println();
+  cli->println();
   file.close();
+  SPIFFS.remove(filename);
+  xSemaphoreGive(filePrintSem);
 }
 
-void printAllFilesToPStream(Print *const printStr)
+void printAllFilesToClient(WiFiClient *const cli)
 {
   int i;
   
@@ -44,9 +63,9 @@ void printAllFilesToPStream(Print *const printStr)
     mp=buff+strlen(buff);
     strcpy(mp,midName);
     strcat(buff,extName);
-    printFileToPStream(buff,printStr);
+    printFileToClient(buff,cli);
     strcpy(mp,extName);
-    printFileToPStream(buff,printStr);
+    printFileToClient(buff,cli);
   }
 }
 
@@ -60,15 +79,18 @@ void fileLogtask(void * parameter)
 {
   char *s;
   while (true){
-    if(xQueueReceive(fileLogQueueH, &s, portMAX_DELAY)){
-     if(filePrint){
-        filePrint->open();  
-        filePrint->println(s);                   // Write to log file
-        filePrint->close();
-      }
-      free(s);
-      s=NULL;
+    while(LOGQUEUELEN/2 > uxQueueMessagesWaiting(fileLogQueueH))
+    {  
+      vTaskDelay(50/portTICK_PERIOD_MS);
     }
+    xSemaphoreTake ( filePrintSem, portMAX_DELAY );
+    if(filePrint) filePrint->open();
+    while(xQueueReceive(fileLogQueueH, &s, 10)){
+        if(filePrint) filePrint->println(s);                   // Write several messages to a log file
+        free(s);
+    }
+    if(filePrint) filePrint->close();
+    xSemaphoreGive(filePrintSem);
   }
 }
 
@@ -82,7 +104,8 @@ void fileLogBegin()
     
   filePrint = new SpiffsFilePrint("/logfile", NLOGFILES, LOGFILESIZE);
   
-  fileLogQueueH = xQueueCreate (50, sizeof(char *));
+  fileLogQueueH = xQueueCreate (LOGQUEUELEN, sizeof(char *));
+  filePrintSem = xSemaphoreCreateMutex();
   
   xTaskCreate (
     fileLogtask,                                              // Task to handle special functions.
