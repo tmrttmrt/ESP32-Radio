@@ -1657,7 +1657,7 @@ void IRAM_ATTR timer10sec()
            ( playlist_num > 0 ) )                 // Or playlist active?
       {
         datamode = STOPREQD ;                     // Stop player
-        ini_block.newpreset++ ;                   // Yes, try next channel
+//        ini_block.newpreset++ ;                   // Yes, try next channel
       }
       morethanonce++ ;                            // Count the fails
     }
