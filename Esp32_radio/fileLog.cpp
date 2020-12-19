@@ -88,6 +88,7 @@ void fileLogtask(void * parameter)
     while(xQueueReceive(fileLogQueueH, &s, 10)){
         if(filePrint) filePrint->println(s);                   // Write several messages to a log file
         free(s);
+        vTaskDelay(1); //Just in case, to reset WDT
     }
     if(filePrint) filePrint->close();
     xSemaphoreGive(filePrintSem);
@@ -108,11 +109,11 @@ void fileLogBegin()
   filePrintSem = xSemaphoreCreateMutex();
   
   xTaskCreate (
-    fileLogtask,                                              // Task to handle special functions.
+    fileLogtask,                                              // Task to handle file logs.
     "File log task",                                            // name of task.
     0x1000,                                                 // Stack size of task
     NULL,                                                 // parameter of the task
-    2,                                                    // priority of the task
+    0,                                                    // priority of the task
     &fileLogTaskH ) ;                                         // Task handle to keep track of created task
 }
 
