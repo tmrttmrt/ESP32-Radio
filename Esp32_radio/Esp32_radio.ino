@@ -5703,6 +5703,18 @@ void handle_spec()
   }
 }
 
+const char* wl_status_to_string(wl_status_t status) {
+  switch (status) {
+    case WL_NO_SHIELD: return "WL_NO_SHIELD";
+    case WL_IDLE_STATUS: return "WL_IDLE_STATUS";
+    case WL_NO_SSID_AVAIL: return "WL_NO_SSID_AVAIL";
+    case WL_SCAN_COMPLETED: return "WL_SCAN_COMPLETED";
+    case WL_CONNECTED: return "WL_CONNECTED";
+    case WL_CONNECT_FAILED: return "WL_CONNECT_FAILED";
+    case WL_CONNECTION_LOST: return "WL_CONNECTION_LOST";
+    case WL_DISCONNECTED: return "WL_DISCONNECTED";
+  }
+}
 
 //**************************************************************************************************
 //                                     S P F T A S K                                               *
@@ -5713,12 +5725,37 @@ void handle_spec()
 //**************************************************************************************************
 void spftask ( void * parameter )
 {
+  long dbgcount=0;
   while ( true )
   {
     handle_spec() ;                                                 // Maybe some special funcs?
     vTaskDelay ( 100 / portTICK_PERIOD_MS ) ;                       // Pause for a short time
     adcval = ( 15 * adcval +                                        // Read ADC and do some filtering
-               adc1_get_raw ( ADC1_CHANNEL_0 ) ) / 16 ;
+    adc1_get_raw ( ADC1_CHANNEL_0 ) ) / 16 ;
+    if(++dbgcount >= 600){
+      dbgcount = 0;
+      wl_status_t status = WiFi.status();
+      dbgprint("Wifi status: %s",wl_status_to_string(status));
+      if( NetworkFound && status!= WL_CONNECTED){
+        dbgprint("Reconnnecting WiFi...");
+        WifiInfo_t winfo ;                                    // Entry from wifilist
+
+        WiFi.disconnect(true) ;                               // After restart the router could
+        if ( wifilist.size()  )                               // Any AP defined?
+        {
+          if ( wifilist.size() == 1 )                         // Just one AP defined in preferences?
+          {
+            winfo = wifilist[0] ;                             // Get this entry
+            WiFi.begin ( winfo.ssid, winfo.passphrase ) ;     // Connect to single SSID found in wifi_xx
+            dbgprint ( "Try WiFi %s", winfo.ssid ) ;          // Message to show during WiFi connect
+          }
+          else                                                // More AP to try
+          {
+            wifiMulti.run() ;                                 // Connect to best network
+          }
+        }
+      }    
+    }
   }
   //vTaskDelete ( NULL ) ;                                          // Will never arrive here
 }
